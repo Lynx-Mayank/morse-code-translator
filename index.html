@@ -287,200 +287,363 @@
         <span id="toastMsg">Action Successful</span>
     </div>
 
-    <script>
-        // --- NAVIGATION LOGIC ---
-        function switchPage(pageId) {
-            // Hide all pages
-            document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
-            
-            // Show selected page
-            document.getElementById(`page-${pageId}`).classList.remove('hidden');
-            
-            // Update Navigation State (Desktop)
-            document.querySelectorAll('.nav-link').forEach(el => {
-                el.classList.remove('active', 'text-amber-500', 'bg-amber-500/10');
-                el.classList.add('text-slate-300');
-            });
-            
-            // Highlight active nav button if exists
-            const activeBtn = document.getElementById(`nav-${pageId}`);
-            if(activeBtn) {
-                activeBtn.classList.add('active');
-                activeBtn.classList.remove('text-slate-300');
-            }
+    
+<script>
+    // --- NAVIGATION LOGIC ---
+    function switchPage(pageId) {
+        document.querySelectorAll('.page-section').forEach(page => {
+            page.classList.add('hidden');
+        });
 
-            // Close mobile menu if open
-            document.getElementById('mobile-menu').classList.add('hidden');
-            
-            // Scroll to top
-            window.scrollTo(0, 0);
+        const page = document.getElementById(`page-${pageId}`);
+        if (page) page.classList.remove('hidden');
+
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.remove('active', 'text-amber-500', 'bg-amber-500/10');
+            link.classList.add('text-slate-300');
+        });
+
+        const activeBtn = document.getElementById(`nav-${pageId}`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            activeBtn.classList.remove('text-slate-300');
         }
 
-        function toggleMobileMenu() {
-            const menu = document.getElementById('mobile-menu');
-            menu.classList.toggle('hidden');
+        document.getElementById('mobile-menu').classList.add('hidden');
+        window.scrollTo(0, 0);
+    }
+
+    function toggleMobileMenu() {
+        document.getElementById('mobile-menu').classList.toggle('hidden');
+    }
+
+    // --- MORSE CODE DICTIONARY ---
+    const MORSE_CODE = {
+        'A': '.-',    'B': '-...',  'C': '-.-.',  'D': '-..',
+        'E': '.',     'F': '..-.',  'G': '--.',   'H': '....',
+        'I': '..',    'J': '.---',  'K': '-.-',   'L': '.-..',
+        'M': '--',    'N': '-.',    'O': '---',   'P': '.--.',
+        'Q': '--.-',  'R': '.-.',   'S': '...',   'T': '-',
+        'U': '..-',   'V': '...-',  'W': '.--',   'X': '-..-',
+        'Y': '-.--',  'Z': '--..',
+        '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+        '5': '.....', '6': '-....', '7': '--...', '8': '---..',
+        '9': '----.', '0': '-----',
+        '.': '.-.-.-', ',': '--..--', '?': '..--..',
+        "'": '.----.', '!': '-.-.--', '/': '-..-.',
+        '(': '-.--.', ')': '-.--.-', '&': '.-...',
+        ':': '---...', ';': '-.-.-.', '=': '-...-',
+        '+': '.-.-.', '-': '-....-', '_': '..--.-',
+        '"': '.-..-.', '$': '...-..-', '@': '.--.-.'
+    };
+
+    const REVERSE_MORSE = Object.fromEntries(
+        Object.entries(MORSE_CODE).map(([character, code]) => [
+            code, character
+        ])
+    );
+
+    const inputArea = document.getElementById('inputArea');
+    const outputArea = document.getElementById('outputArea');
+    const playBtn = document.getElementById('playBtn');
+    const stopBtn = document.getElementById('stopBtn');
+
+    // --- REFERENCE GUIDE ---
+    const refGrid = document.getElementById('referenceGrid');
+
+    Object.entries(MORSE_CODE).forEach(([character, code]) => {
+        const item = document.createElement('div');
+
+        item.className =
+            'flex justify-between bg-slate-700/30 p-2 rounded ' +
+            'hover:bg-slate-700/50 transition-colors';
+
+        const charSpan = document.createElement('span');
+        charSpan.className = 'text-slate-400 font-sans';
+        charSpan.textContent = character;
+
+        const codeSpan = document.createElement('span');
+        codeSpan.className = 'text-amber-500';
+        codeSpan.textContent = code;
+
+        item.append(charSpan, codeSpan);
+        refGrid.appendChild(item);
+    });
+
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+
+    // --- INPUT AND TRANSLATION ---
+    function isMorseInput(value) {
+        return /^[.\-/\s]+$/.test(value.trim());
+    }
+
+    inputArea.addEventListener('input', () => {
+        const value = inputArea.value;
+
+        if (!value.trim()) {
+            outputArea.value = '';
+            return;
         }
 
-        // --- MORSE LOGIC (Same as before) ---
-        const MORSE_CODE = {
-            'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',
-            'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..',
-            'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.',
-            'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
-            'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--', 
-            '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..', 
-            '9': '----.', '0': '-----', '.': '.-.-.-', ',': '--..--', '?': '..--..', 
-            "'": '.----.', '!': '-.-.--', '/': '-..-.', '(': '-.--.', ')': '-.--.-', 
-            '&': '.-...', ':': '---...', ';': '-.-.-.', '=': '-...-', '+': '.-.-.', 
-            '-': '-....-', '_': '..--.-', '"': '.-..-.', '$': '...-..-', '@': '.--.-.', 
-            ' ': '/' 
+        // Only update the output.
+        // Never rewrite the user's input or move their cursor.
+        translate(value);
+    });
+
+    function decodeMorse(input) {
+        const normalized = input.trim();
+
+        // A slash or multiple spaces separate words.
+        // A single space separates letters.
+        const words = normalized
+            .split(/(?:\s{2,}|\/+)/)
+            .map(word => word.trim())
+            .filter(Boolean);
+
+        return words.map(word => {
+            return word
+                .split(/\s+/)
+                .map(code => REVERSE_MORSE[code] || '?')
+                .join('');
+        }).join(' ');
+    }
+
+    function encodeText(input) {
+        return input
+            .toUpperCase()
+            .split('\n')
+            .map(line => {
+                return line
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .map(word => {
+                        return [...word].map(character => {
+                            return MORSE_CODE[character] || '?';
+                        }).join(' ');
+                    })
+                    .join(' / ');
+            })
+            .join('\n');
+    }
+
+    function translate(input) {
+        const trimmed = input.trim();
+
+        if (!trimmed) {
+            outputArea.value = '';
+            return;
+        }
+
+        if (isMorseInput(trimmed)) {
+            outputArea.value = decodeMorse(trimmed);
+        } else {
+            outputArea.value = encodeText(input);
+        }
+    }
+
+    function clearInput() {
+        stopAudio();
+        inputArea.value = '';
+        outputArea.value = '';
+        inputArea.focus();
+    }
+
+    // --- NOTIFICATIONS ---
+    let toastTimeout;
+
+    function showToast(message) {
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toastMsg');
+
+        toastMsg.innerText = message;
+        toast.classList.remove('translate-y-20', 'opacity-0');
+
+        clearTimeout(toastTimeout);
+
+        toastTimeout = setTimeout(() => {
+            toast.classList.add('translate-y-20', 'opacity-0');
+        }, 2000);
+    }
+
+    // --- COPY OUTPUT ---
+    async function copyOutput() {
+        if (!outputArea.value) {
+            showToast('Nothing to copy');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(outputArea.value);
+            showToast('Copied to clipboard');
+        } catch (error) {
+            // Fallback for browsers where Clipboard API is unavailable.
+            outputArea.focus();
+            outputArea.select();
+
+            const copied = document.execCommand('copy');
+
+            window.getSelection()?.removeAllRanges();
+
+            showToast(copied ? 'Copied to clipboard' : 'Copy failed');
+        }
+    }
+
+    // --- AUDIO PLAYBACK ---
+    let audioCtx = null;
+    let isPlaying = false;
+    let playbackTimer = null;
+    const activeOscillators = new Set();
+
+    const DOT_TIME = 60; // milliseconds
+    const FREQUENCY = 600;
+
+    function playTone(duration, startTime) {
+        const oscillator = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.value = FREQUENCY;
+
+        oscillator.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.1, startTime + 0.005);
+        gain.gain.setValueAtTime(0.1, startTime + duration - 0.005);
+        gain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+        activeOscillators.add(oscillator);
+
+        oscillator.onended = () => {
+            activeOscillators.delete(oscillator);
+            oscillator.disconnect();
+            gain.disconnect();
         };
 
-        const REVERSE_MORSE = Object.fromEntries(
-            Object.entries(MORSE_CODE).map(([key, value]) => [value, key])
-        );
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+    }
 
-        const inputArea = document.getElementById('inputArea');
-        const outputArea = document.getElementById('outputArea');
-        const playBtn = document.getElementById('playBtn');
-        const stopBtn = document.getElementById('stopBtn');
+    function stopAudio() {
+        if (playbackTimer !== null) {
+            clearTimeout(playbackTimer);
+            playbackTimer = null;
+        }
 
-        // Populate Reference Grid
-        const refGrid = document.getElementById('referenceGrid');
-        Object.entries(MORSE_CODE).forEach(([char, code]) => {
-            if(char === ' ') return;
-            const item = document.createElement('div');
-            item.className = 'flex justify-between bg-slate-700/30 p-2 rounded hover:bg-slate-700/50 transition-colors';
-            item.innerHTML = `<span class="text-slate-400 font-sans">${char}</span> <span class="text-amber-500">${code}</span>`;
-            refGrid.appendChild(item);
+        // Stop every tone that is still playing or scheduled.
+        activeOscillators.forEach(oscillator => {
+            try {
+                oscillator.stop();
+            } catch (error) {
+                // It may already have stopped.
+            }
         });
 
-        lucide.createIcons();
+        activeOscillators.clear();
+        isPlaying = false;
 
-        inputArea.addEventListener('input', (e) => {
-            const val = e.target.value;
-            if(!val.trim()) {
-                outputArea.value = '';
-                return;
+        playBtn.classList.remove('hidden');
+        stopBtn.classList.add('hidden');
+    }
+
+    async function playMorse() {
+        if (isPlaying) return;
+
+        const inputValue = inputArea.value.trim();
+
+        if (!inputValue) {
+            showToast('Enter some text or Morse code first');
+            return;
+        }
+
+        // Convert text to Morse, or play the Morse entered by the user.
+        const morse = isMorseInput(inputValue)
+            ? inputValue
+            : encodeText(inputValue);
+
+        if (!morse || morse.includes('?')) {
+            showToast('Some characters cannot be played');
+            return;
+        }
+
+        // Separate words by slashes or two or more spaces.
+        const words = morse
+            .split(/(?:\s{2,}|\/+)/)
+            .map(word => word.trim())
+            .filter(Boolean);
+
+        const unit = DOT_TIME / 1000;
+
+        try {
+            if (!audioCtx) {
+                audioCtx = new (
+                    window.AudioContext || window.webkitAudioContext
+                )();
             }
-            translate(val);
-        });
 
-        function translate(input) {
-            const trimmed = input.trim();
-            const isMorse = /^[.\- \/\n]+$/.test(trimmed);
-
-            if (isMorse) {
-                const words = trimmed.split(/[\s\/]{2,}/);
-                const result = words.map(word => {
-                    return word.trim().split(/\s+/).map(code => {
-                        return REVERSE_MORSE[code] || '?';
-                    }).join('');
-                }).join(' ');
-                outputArea.value = result.toLowerCase().replace(/(^\w{1})|(\.\s*\w{1})/g, match => match.toUpperCase());
-            } else {
-                const result = input.toUpperCase().split('').map(char => {
-                    if (char === '\n') return '\n';
-                    if (MORSE_CODE[char]) return MORSE_CODE[char];
-                    return '?';
-                }).join(' ');
-                outputArea.value = result;
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
             }
+        } catch (error) {
+            showToast('Audio is unavailable in this browser');
+            return;
         }
 
-        function clearInput() {
-            inputArea.value = '';
-            outputArea.value = '';
-            inputArea.focus();
-        }
+        isPlaying = true;
+        playBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
 
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toastMsg');
-            toastMsg.innerText = msg;
-            toast.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => {
-                toast.classList.add('translate-y-20', 'opacity-0');
-            }, 2000);
-        }
+        let currentTime = audioCtx.currentTime + 0.05;
 
-        function copyOutput() {
-            if(!outputArea.value) return;
-            outputArea.select();
-            document.execCommand('copy');
-            showToast('Copied to clipboard');
-            window.getSelection().removeAllRanges();
-        }
+        words.forEach((word, wordIndex) => {
+            const letters = word.split(/\s+/).filter(Boolean);
 
-        // --- Audio Logic ---
-        let audioCtx;
-        let oscillator;
-        let isPlaying = false;
-        let timeoutIds = [];
-        const DOT_TIME = 60;
-        const FREQUENCY = 600;
+            letters.forEach((letter, letterIndex) => {
+                [...letter].forEach((symbol, symbolIndex, symbols) => {
+                    const duration = symbol === '.'
+                        ? unit
+                        : symbol === '-'
+                            ? unit * 3
+                            : 0;
 
-        function stopAudio() {
-            if (audioCtx) {
-                if(oscillator) { try { oscillator.stop(); } catch(e){} }
-                timeoutIds.forEach(id => clearTimeout(id));
-                timeoutIds = [];
-                isPlaying = false;
-                playBtn.classList.remove('hidden');
-                stopBtn.classList.add('hidden');
-            }
-        }
+                    if (duration > 0) {
+                        playTone(duration, currentTime);
+                        currentTime += duration;
 
-        function playTone(duration, startTime) {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = FREQUENCY;
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(startTime);
-            gain.gain.setValueAtTime(0, startTime);
-            gain.gain.linearRampToValueAtTime(0.1, startTime + 0.01);
-            gain.gain.setValueAtTime(0.1, startTime + duration - 0.01);
-            gain.gain.linearRampToValueAtTime(0, startTime + duration);
-            osc.stop(startTime + duration);
-        }
+                        // One unit between symbols within the same letter.
+                        if (symbolIndex < symbols.length - 1) {
+                            currentTime += unit;
+                        }
+                    }
+                });
 
-        function playMorse() {
-            let textToPlay = '';
-            const inputVal = inputArea.value.trim();
-            const isInputMorse = /^[.\- \/\n]+$/.test(inputVal);
-            if (isInputMorse) textToPlay = inputVal;
-            else textToPlay = outputArea.value;
-
-            if (!textToPlay) return;
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (isPlaying) return;
-            
-            isPlaying = true;
-            playBtn.classList.add('hidden');
-            stopBtn.classList.remove('hidden');
-
-            let currentTime = audioCtx.currentTime + 0.1;
-            const symbols = textToPlay.split('');
-            let scheduleDuration = 0;
-
-            symbols.forEach(char => {
-                if (char === '.') {
-                    playTone(DOT_TIME / 1000, currentTime);
-                    currentTime += (DOT_TIME / 1000);
-                } else if (char === '-') {
-                    playTone((DOT_TIME * 3) / 1000, currentTime);
-                    currentTime += ((DOT_TIME * 3) / 1000);
+                if (letterIndex < letters.length - 1) {
+                    // Three units between letters.
+                    currentTime += unit * 3;
                 }
-                
-                if (char === ' ') currentTime += ((DOT_TIME * 3) / 1000);
-                else currentTime += (DOT_TIME / 1000);
             });
 
-            const resetTimer = setTimeout(() => { stopAudio(); }, (currentTime - audioCtx.currentTime) * 1000);
-            timeoutIds.push(resetTimer);
-        }
-    </script>
+            if (wordIndex < words.length - 1) {
+                // Seven units between words.
+                currentTime += unit * 7;
+            }
+        });
+
+        const remainingTime = Math.max(
+            0,
+            (currentTime - audioCtx.currentTime) * 1000
+        );
+
+        playbackTimer = setTimeout(() => {
+            playbackTimer = null;
+            isPlaying = false;
+            playBtn.classList.remove('hidden');
+            stopBtn.classList.add('hidden');
+        }, remainingTime + 100);
+    }
+</script>
 </body>
 </html>
