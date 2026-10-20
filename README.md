@@ -1,6 +1,6 @@
 # Signal // Morse Code Translator
 
-## website link - https://lynx-mayank.github.io/morse-code-translator/
+## Website Link - https://lynx-mayank.github.io/morse-code-translator/
 
 A fast, single-file Morse code translator that runs entirely in the browser. Type plain text to get Morse, or paste Morse to get text, and play it back as audio.
 
